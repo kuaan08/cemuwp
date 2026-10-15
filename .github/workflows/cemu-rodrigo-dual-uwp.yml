@@ -1,0 +1,129 @@
+name: Cemu Xbox One Rodrigo D3D11 and experimental D3D12
+on:
+  push:
+    branches:
+      - uwp/d3d11-dual
+    paths-ignore:
+      - '**/*.md'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: xbox-rodrigo-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  xbox-x64:
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 180
+    env:
+      VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/vcpkg-cache,readwrite"
+      VCPKG_FORCE_DOWNLOADED_BINARIES: "true"
+    steps:
+      - name: Checkout customizations
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Checkout full Cemu D3D11 core
+        uses: actions/checkout@v4
+        with:
+          repository: rodrigoandrigo/Cemu
+          ref: c70bca6f94c94dc7fc8e5bdda5e55d85c500f371
+          path: ports/Cemu
+          submodules: recursive
+      - name: Checkout UWP host
+        uses: actions/checkout@v4
+        with:
+          repository: rodrigoandrigo/Cemu-UWP-Host
+          ref: 7dbfb6aa8716593cf7caed3cbcd39b07aee58c2e
+          path: ports/Cemu-UWP-Host
+      - name: Checkout SDL3 Xbox backend
+        uses: actions/checkout@v4
+        with:
+          repository: rodrigoandrigo/SDL3_UWP
+          ref: 37ee4ec4f4427e45dab91d1b40a5d075cb7ae255
+          path: ports/SDL3-uwp
+          submodules: recursive
+      - name: Add selectable renderer and hardware WARP reporting
+        shell: pwsh
+        run: |
+          python tools/patch_rodrigo_host.py ports/Cemu-UWP-Host
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Prepare cache
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force -Path vcpkg-cache | Out-Null
+      - name: Reuse vcpkg dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            vcpkg-cache
+            ports/Cemu/dependencies/vcpkg/downloads
+          key: rodrigo-vcpkg-${{ runner.os }}-${{ hashFiles('ports/Cemu/cmake/vcpkg-embed/vcpkg.json') }}-${{ github.run_id }}
+          restore-keys: |
+            rodrigo-vcpkg-${{ runner.os }}-
+      - name: Bootstrap vcpkg
+        shell: pwsh
+        run: |
+          & .\ports\Cemu\dependencies\vcpkg\bootstrap-vcpkg.bat
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify VS2026 SDK
+        shell: pwsh
+        run: |
+          cmake --version
+          if (-not (Test-Path 'C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0')) { throw 'Windows SDK 26100 missing' }
+          & 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -latest -products '*' -property installationPath
+      - name: Configure embedded dual renderer
+        shell: pwsh
+        run: |
+          cmake -S ports/Cemu -B build-rodrigo-cemu -G 'Visual Studio 18 2026' -A x64 -DCEMU_UWP=ON -DENABLE_D3D11=ON -DENABLE_D3D12=ON -DSDL3_UWP_SOURCE_DIR="$env:GITHUB_WORKSPACE/ports/SDL3-uwp" 2>&1 | Tee-Object -FilePath configure-rodrigo.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build complete embedded Cemu engine
+        shell: pwsh
+        run: |
+          cmake --build build-rodrigo-cemu --config Release --target CemuBin --parallel 2 2>&1 | Tee-Object -FilePath build-cemu.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($file in @('ports/Cemu/bin/Cemu_release.dll','ports/Cemu/bin/Cemu_release.lib','ports/Cemu/bin/resources/sharedFonts/CafeCn.ttf')) {
+            if (-not (Test-Path $file)) { throw "Incomplete Cemu runtime: $file" }
+          }
+      - name: Create matching temporary UWP signing certificate
+        shell: pwsh
+        run: |
+          [xml]$manifest = Get-Content ports/Cemu-UWP-Host/Package.appxmanifest
+          $publisher = $manifest.Package.Identity.Publisher
+          if (-not $publisher) { throw 'Publisher not found in manifest' }
+          $cert = New-SelfSignedCertificate -Type Custom -Subject $publisher -KeyUsage DigitalSignature -FriendlyName 'Cemu Xbox One CI test cert' -CertStoreLocation 'Cert:\CurrentUser\My' -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3')
+          $pw = ConvertTo-SecureString 'cemu' -Force -AsPlainText
+          Export-PfxCertificate -Cert $cert -FilePath "$env:GITHUB_WORKSPACE\dual-sign.pfx" -Password $pw | Out-Null
+          Export-Certificate -Cert $cert -FilePath "$env:GITHUB_WORKSPACE\dual-test.cer" | Out-Null
+      - name: Compile complete UWP x64 installer
+        shell: pwsh
+        run: |
+          $vs = & 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe' -latest -products '*' -property installationPath
+          $msbuild = Join-Path $vs 'MSBuild\Current\Bin\MSBuild.exe'
+          & $msbuild 'ports/Cemu-UWP-Host/Cemu-UWP-Host.vcxproj' /restore /m /p:Configuration=Release /p:Platform=x64 /p:CemuBuildDir="$env:GITHUB_WORKSPACE\ports\Cemu\bin" /p:CemuIncludeDir="$env:GITHUB_WORKSPACE\ports\Cemu\src" /p:GenerateAppxPackageOnBuild=true /p:AppxBundle=Never /p:UapAppxPackageBuildMode=SideloadOnly /p:AppxPackageSigningEnabled=true /p:PackageCertificateKeyFile="$env:GITHUB_WORKSPACE\dual-sign.pfx" /p:PackageCertificatePassword=cemu /p:AppxPackageDir="$env:GITHUB_WORKSPACE\XboxPackages\" 2>&1 | Tee-Object -FilePath build-host.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package installer and certificate
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path install-xbox | Out-Null
+          $packages = @(Get-ChildItem XboxPackages -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in '.appx','.msix','.appxbundle','.msixbundle' })
+          if ($packages.Count -eq 0) { throw 'No full UWP installation package found' }
+          foreach ($package in $packages) { Copy-Item $package.FullName install-xbox -Force }
+          Copy-Item dual-test.cer install-xbox
+          Compress-Archive -Path install-xbox/* -DestinationPath cemu-xbox-one-d3d11-dual-x64.zip -Force
+      - name: Upload complete Xbox installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: cemu-xbox-one-d3d11-dual-x64
+          path: cemu-xbox-one-d3d11-dual-x64.zip
+          retention-days: 30
+      - name: Upload compile logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cemu-xbox-one-d3d11-logs
+          path: |
+            configure-rodrigo.log
+            build-cemu.log
+            build-host.log
+          if-no-files-found: ignore
+          retention-days: 14
