@@ -47,3 +47,11 @@ No paid game files, firmware, keys, or copyrighted game assets are included.
 This branch disables SM6/DXC/DXIL at runtime for UWP. The renderer stops probing Shader Model 6+, the shader compiler enforces the FXC/DXBC path, and UI DXC selections are hidden. Saved settings from Series builds are reset to FXC when the UWP frontend initializes. Three FXC pipeline scheduling profiles remain to test accuracy, balanced, and asynchronous operation.
 
 DXC-related source code is intentionally retained for non-UWP builds and upstream merges, but it is not selected or loaded by this Xbox One UWP build. This does not remove the D3D12 GPU requirements or establish game compatibility.
+
+## NES Remix Pack crash investigation (Xbox One Fat)
+
+User-provided `log.txt` and `log_previous.txt` from version `10b4fef` both show `0xc0000005` in `umd12ddi.dll+0x3732d`, immediately after the first color/depth texture format logs; the PPC recompiler, renderer device setup, DXBC FXC, startup command-list submissions and XAudio2 initialize normally. The last memory report was 2035 of 5120 MiB, so an ordinary budget-exceeded termination is not established. The same UMD offset was recorded in an Eden Xbox One experiment with A Short Hike; no single D3D12 call is yet confirmed as responsible.
+
+This diagnostic patch adds `XB1-TEX`, `XB1-RTV`, `XB1-DSV` and `XB1-FBO` BEGIN/END breadcrumbs, bounded to the first few attachments. It also selects non-array TEXTURE2D render-target/depth-stencil view dimensions for native 2D single-slice resources. That view-dimension change is a compatibility experiment, **not a confirmed fix**. Other platforms retain their existing descriptor path.
+
+On the Xbox, launch the same title. If it closes, export only `LocalState/log.txt` and `log_previous.txt` via Device Portal, not the full package data archive; user archives may include private `keys.txt`. Compare the final unmatched BEGIN probe to isolate the next failing D3D12 driver call.

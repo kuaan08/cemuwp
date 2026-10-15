@@ -1,4 +1,5 @@
 #include "Cafe/HW/Latte/Renderer/D3D12/LatteTextureViewD3D12.h"
+#include <atomic>
 #include "Cafe/HW/Latte/Renderer/D3D12/LatteTextureD3D12.h"
 #include "Cafe/HW/Latte/Renderer/D3D12/D3D12Renderer.h"
 
@@ -343,8 +344,33 @@ D3D12_CPU_DESCRIPTOR_HANDLE LatteTextureViewD3D12::GetRTV()
 		desc.Texture2DArray.ArraySize = numSlice;
 		desc.Texture2DArray.PlaneSlice = 0;
 	}
+#ifdef CEMU_UWP
+	// Use the native 2D view dimension for a non-array 2D attachment instead of
+	// always asking the Xbox One driver for an array view with one slice.
+	if (desc.ViewDimension == D3D12_RTV_DIMENSION_TEXTURE2DARRAY &&
+		m_baseTexture->GetDesc().DepthOrArraySize == 1 && firstSlice == 0 && numSlice == 1 &&
+		(dim == Latte::E_DIM::DIM_2D || dim == Latte::E_DIM::DIM_2D_MSAA))
+	{
+		desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+		desc.Texture2D.MipSlice = firstMip;
+		desc.Texture2D.PlaneSlice = 0;
+	}
+	static std::atomic_uint32_t s_rtvProbeCount{ 0 };
+	const uint32 rtvId = ++s_rtvProbeCount;
+	if (rtvId <= 48)
+		cemuLog_log(LogType::Force, "XB1-RTV #{} BEGIN Allocate + CreateRenderTargetView DXGI {} dim {} slice {} count {} resource {}",
+			rtvId, (uint32)desc.Format, (uint32)desc.ViewDimension, firstSlice, numSlice, m_baseTexture->GetResource() ? "valid" : "null");
+#endif
 	m_rtv = m_renderer->GetStagingRTVHeap().Allocate();
+#ifdef CEMU_UWP
+	if (rtvId <= 48)
+		cemuLog_log(LogType::Force, "XB1-RTV #{} HEAP ready, BEGIN CreateRenderTargetView", rtvId);
+#endif
 	m_renderer->GetDevice()->CreateRenderTargetView(m_baseTexture->GetResource(), &desc, m_rtv);
+#ifdef CEMU_UWP
+	if (rtvId <= 48)
+		cemuLog_log(LogType::Force, "XB1-RTV #{} END CreateRenderTargetView", rtvId);
+#endif
 	D3D12_Checkpoint(m_renderer->GetDevice(), "texture RTV created");
 	return m_rtv;
 }
@@ -371,8 +397,30 @@ D3D12_CPU_DESCRIPTOR_HANDLE LatteTextureViewD3D12::GetDSV()
 		desc.Texture2DArray.FirstArraySlice = firstSlice;
 		desc.Texture2DArray.ArraySize = numSlice;
 	}
+#ifdef CEMU_UWP
+	if (desc.ViewDimension == D3D12_DSV_DIMENSION_TEXTURE2DARRAY &&
+		m_baseTexture->GetDesc().DepthOrArraySize == 1 && firstSlice == 0 && numSlice == 1 &&
+		(dim == Latte::E_DIM::DIM_2D || dim == Latte::E_DIM::DIM_2D_MSAA))
+	{
+		desc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+		desc.Texture2D.MipSlice = firstMip;
+	}
+	static std::atomic_uint32_t s_dsvProbeCount{ 0 };
+	const uint32 dsvId = ++s_dsvProbeCount;
+	if (dsvId <= 64)
+		cemuLog_log(LogType::Force, "XB1-DSV #{} BEGIN Allocate + CreateDepthStencilView DXGI {} dim {} slice {} count {} resource {}",
+			dsvId, (uint32)desc.Format, (uint32)desc.ViewDimension, firstSlice, numSlice, m_baseTexture->GetResource() ? "valid" : "null");
+#endif
 	m_dsv = m_renderer->GetStagingDSVHeap().Allocate();
+#ifdef CEMU_UWP
+	if (dsvId <= 64)
+		cemuLog_log(LogType::Force, "XB1-DSV #{} HEAP ready, BEGIN CreateDepthStencilView", dsvId);
+#endif
 	m_renderer->GetDevice()->CreateDepthStencilView(m_baseTexture->GetResource(), &desc, m_dsv);
+#ifdef CEMU_UWP
+	if (dsvId <= 64)
+		cemuLog_log(LogType::Force, "XB1-DSV #{} END CreateDepthStencilView", dsvId);
+#endif
 	D3D12_Checkpoint(m_renderer->GetDevice(), "texture DSV created");
 	return m_dsv;
 }

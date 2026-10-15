@@ -5,6 +5,7 @@
 
 #include <mutex>
 #include <unordered_set>
+#include <atomic>
 
 LatteTextureD3D12::LatteTextureD3D12(D3D12Renderer* renderer, Latte::E_DIM dim, MPTR physAddress, MPTR physMipAddress, Latte::E_GX2SURFFMT format, uint32 width, uint32 height, uint32 depth, uint32 pitch, uint32 mipLevels,
 	uint32 swizzle, Latte::E_HWTILEMODE tileMode, bool isDepth)
@@ -84,7 +85,26 @@ LatteTextureD3D12::LatteTextureD3D12(D3D12Renderer* renderer, Latte::E_DIM dim, 
 
 	D3D12_HEAP_PROPERTIES heapProps = D3D12_HeapProps(D3D12_HEAP_TYPE_DEFAULT);
 	const D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COMMON;
+#ifdef CEMU_UWP
+	// The Xbox One driver crashes without returning HRESULT in the first game texture / depth setup.
+	// Matched BEGIN/END breadcrumbs distinguish allocation failures from view/PSO failures.
+	// Bound the color texture logs so games do not produce multi-megabyte traces.
+	static std::atomic_uint32_t s_textureProbeId{ 0 };
+	static std::atomic_uint32_t s_depthProbeCount{ 0 };
+	const uint32 probeId = ++s_textureProbeId;
+	const bool traceDepth = isDepth && (++s_depthProbeCount <= 64);
+	const bool traceCreation = probeId <= 64 || traceDepth;
+	if (traceCreation)
+		cemuLog_log(LogType::Force, "XB1-TEX #{} BEGIN CreateCommittedResource {} {}x{}x{} mips {} DXGI {} flags 0x{:x} samples {}",
+			probeId, isDepth ? "depth" : "color", m_desc.Width, m_desc.Height, m_desc.DepthOrArraySize,
+			m_desc.MipLevels, (uint32)m_desc.Format, (uint32)m_desc.Flags, m_desc.SampleDesc.Count);
+#endif
 	HRESULT hr = renderer->GetDevice()->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &m_desc, initialState, nullptr, IID_PPV_ARGS(&m_resource));
+#ifdef CEMU_UWP
+	if (traceCreation)
+		cemuLog_log(LogType::Force, "XB1-TEX #{} END CreateCommittedResource result {} resource {}",
+			probeId, D3D12_HResultToString(hr), m_resource ? "valid" : "null");
+#endif
 	D3D12_Checkpoint(renderer->GetDevice(), "game texture created");
 	if (FAILED(hr))
 	{
