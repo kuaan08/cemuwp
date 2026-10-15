@@ -673,7 +673,7 @@ namespace
 		// DXIL (DXC) skips the driver's DXBC translation, which may make the Xbox's per session pipeline creation faster.
 		// Each compiler has its own shader cache, so switching recompiles every shader once
 #ifdef CEMU_UWP
-		const char* compilers[] = { "FXC (slower game start)", "DXC (default, faster game start)" };
+		const char* compilers[] = { "FXC (Xbox One compatibility, default)", "DXC (experimental on Xbox One)" };
 #else
 		const char* compilers[] = { "FXC (default)", "DXC (experimental)" };
 #endif
