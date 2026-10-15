@@ -227,6 +227,7 @@ void D3D12Renderer::CreateDevice()
 		m_bindingTier = options.ResourceBindingTier;
 	if (m_bindingTier < D3D12_RESOURCE_BINDING_TIER_3)
 		cemuLog_log(LogType::Force, "D3D12: Resource binding tier {} detected. Tier 3 is recommended, shaders that use more than 14 uniform blocks per stage may fail", (uint32)m_bindingTier);
+	cemuLog_log(LogType::Force, "Xbox One diagnostic: GPU shader model 0x{:x}, resource binding tier {}", (uint32)m_highestShaderModel, (uint32)m_bindingTier);
 	D3D12Format::InitFormatSupport(m_device.Get(), m_formatSupport);
 
 	// pipeline libraries (driver pipeline cache on disk). The Xbox UWP driver (SraKmd) removes the device with
