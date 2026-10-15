@@ -1,0 +1,34 @@
+name: Import Cemu UWP source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/bootstrap-import.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    if: github.repository == 'kuaan08/cemuwp'
+    steps:
+      - name: Checkout destination repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Import PrismFox67 D3D12 and UWP source with upstream history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add source https://github.com/PrismFox67/Cemu-UWP.git
+          git fetch --no-tags source d3d12-backend
+          # Tested upstream reference: 8a59ff7a2fe77cdb09aff2a4440249cf23e29e81.
+          # Merge preserves both the upstream history and this bootstrap workflow.
+          git merge --allow-unrelated-histories --no-edit -m "Import PrismFox67/Cemu-UWP d3d12-backend" FETCH_HEAD
+          git push origin HEAD:main
