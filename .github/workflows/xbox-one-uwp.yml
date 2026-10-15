@@ -1,0 +1,115 @@
+name: Cemu Xbox One UWP (experimental)
+
+on:
+  push:
+    branches:
+      - 'uwp/xbox-one'
+    paths-ignore:
+      - '**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cemu-xbox-one-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  xbox-one-uwp-x64:
+    runs-on: windows-2022
+    timeout-minutes: 180
+    env:
+      VCPKG_ROOT: "${{ github.workspace }}/dependencies/vcpkg"
+      VCPKG_FORCE_DOWNLOADED_BINARIES: "true"
+      VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/vcpkg-bincache,readwrite"
+
+    steps:
+      - name: Checkout full Cemu source and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.29.0'
+
+      - name: Prepare dependency cache directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE/vcpkg-bincache" | Out-Null
+
+      - name: Restore vcpkg binaries and downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            vcpkg-bincache
+            dependencies/vcpkg/downloads
+          key: xboxone-vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'dependencies/vcpkg_triplets/x64-uwp-static-md.cmake') }}-${{ github.run_id }}
+          restore-keys: |
+            xboxone-vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'dependencies/vcpkg_triplets/x64-uwp-static-md.cmake') }}-
+
+      - name: Bootstrap vcpkg
+        shell: pwsh
+        run: ./dependencies/vcpkg/bootstrap-vcpkg.bat
+
+      - name: Generate temporary UWP signing certificate
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate -Type Custom -Subject "CN=CemuUWP" -KeyUsage DigitalSignature -FriendlyName "Cemu Xbox One experimental CI" -CertStoreLocation "Cert:\CurrentUser\My" -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
+          $pw = ConvertTo-SecureString -String "cemu" -Force -AsPlainText
+          Export-PfxCertificate -Cert $cert -FilePath "$env:GITHUB_WORKSPACE/CemuUWP_TemporaryKey.pfx" -Password $pw | Out-Null
+          Export-Certificate -Cert $cert -FilePath "$env:GITHUB_WORKSPACE/CemuUWP.cer" | Out-Null
+
+      - name: Set MSIX package version
+        shell: pwsh
+        run: |
+          $p = 'src/gui/host/uwp/Package.appxmanifest'
+          $xml = Get-Content $p -Raw
+          $xml = $xml.Replace('Version="0.1.0.0"', 'Version="0.2.${{ github.run_number }}.0"')
+          Set-Content -Path $p -Value $xml -Encoding utf8
+          Select-String -Path $p -Pattern 'Version="0.2.'
+
+      - name: Configure UWP x64
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake -S . -B build-uwp -G "Visual Studio 17 2022" -A x64 -DCMAKE_SYSTEM_NAME=WindowsStore -DCMAKE_SYSTEM_VERSION=10.0 -DVCPKG_INSTALL_OPTIONS="--clean-after-build" 2>&1 | tee cmake.log
+
+      - name: Build signed MSIX package
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake --build build-uwp --config Release --target CemuBin -- -m -p:GenerateAppxPackageOnBuild=true -p:AppxBundle=Never -p:UapAppxPackageBuildMode=SideloadOnly -p:AppxPackageSigningEnabled=true -p:PackageCertificateKeyFile="$GITHUB_WORKSPACE/CemuUWP_TemporaryKey.pfx" -p:PackageCertificatePassword=cemu -p:AppxPackageDir="$GITHUB_WORKSPACE/AppPackages/" 2>&1 | tee build.log
+
+      - name: Package complete Xbox installer and dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          MSIX=$(find AppPackages -type f -name '*.msix' | head -n 1)
+          test -n "$MSIX"
+          PKGDIR=$(dirname "$MSIX")
+          mkdir -p xbox-one-install
+          cp -r "$PKGDIR"/. xbox-one-install/
+          cp CemuUWP.cer xbox-one-install/
+          rm -rf xbox-one-install/Dependencies/ARM xbox-one-install/Dependencies/ARM64 xbox-one-install/Dependencies/x86 xbox-one-install/TelemetryDependencies
+          cd xbox-one-install
+          7z a -tzip ../cemu-xbox-one-uwp-x64.zip . > /dev/null
+
+      - name: Upload complete Xbox One installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: cemu-xbox-one-uwp-x64
+          path: cemu-xbox-one-uwp-x64.zip
+          retention-days: 30
+
+      - name: Upload compiler logs for debugging
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cemu-xbox-one-ci-logs
+          path: |
+            cmake.log
+            build.log
+          if-no-files-found: ignore
+          retention-days: 14
