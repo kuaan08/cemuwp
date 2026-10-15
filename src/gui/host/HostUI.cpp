@@ -15,6 +15,9 @@
 #include "Common/version.h"
 
 #include <imgui.h>
+#ifdef CEMU_UWP
+#include <d3d11.h>
+#endif
 
 #include <mutex>
 #include <fstream>
@@ -702,6 +705,56 @@ namespace
 			changed = true;
 		}
 		ImGui::TextDisabled("Accuracy may pause on shader compilation. Smooth can omit first-use effects. Restart game to change compiler.");
+
+		ImGui::SeparatorText("Xbox One D3D12 compatibility fixes");
+		bool depthClear = config.xbox_depth_optimized_clear.GetValue();
+		if (ImGui::Checkbox("Optimized depth clear value (experimental)", &depthClear))
+		{
+			config.xbox_depth_optimized_clear = depthClear;
+			changed = true;
+		}
+		ImGui::TextDisabled("Try typed optimized clear for D24S8 depth textures. Restart game.");
+		bool skipTextureCheck = config.xbox_skip_texture_checkpoint.GetValue();
+		if (ImGui::Checkbox("Skip immediate texture device-removed check", &skipTextureCheck))
+		{
+			config.xbox_skip_texture_checkpoint = skipTextureCheck;
+			changed = true;
+		}
+		ImGui::TextDisabled("On by default. Turn off to reproduce the original driver-query path.");
+		bool disableDred = config.xbox_disable_dred.GetValue();
+		if (ImGui::Checkbox("Disable DRED GPU diagnostics (experimental)", &disableDred))
+		{
+			config.xbox_disable_dred = disableDred;
+			changed = true;
+		}
+		ImGui::TextDisabled("Compare D3D12 driver diagnostics on/off; restart application.");
+
+		ImGui::SeparatorText("Direct3D 11 hardware probe");
+		ImGui::TextWrapped("A D3D11 game renderer is NOT installed. On original Xbox One UWP, D3D11 typically offers FL10.0/SM4.0; the existing Cemu D3D11 port requires FL11.0.");
+		static std::string probeResult = "D3D11 hardware: not tested";
+		if (ImGui::Button("Test hardware Direct3D 11"))
+		{
+			const D3D_FEATURE_LEVEL requested[] = {
+				D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0
+			};
+			ID3D11Device* device = nullptr;
+			ID3D11DeviceContext* context = nullptr;
+			D3D_FEATURE_LEVEL selected = D3D_FEATURE_LEVEL_10_0;
+			const HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0,
+				requested, ARRAYSIZE(requested), D3D11_SDK_VERSION, &device, &selected, &context);
+			if (SUCCEEDED(hr))
+			{
+				const char* feature = selected == D3D_FEATURE_LEVEL_11_0 ? "11.0 (SM5.0)" :
+					selected == D3D_FEATURE_LEVEL_10_1 ? "10.1 (SM4.1)" : "10.0 (SM4.0)";
+				probeResult = fmt::format("Hardware D3D11 available: FL {}", feature);
+			}
+			else
+				probeResult = fmt::format("Hardware D3D11 failed: HRESULT 0x{:08x}", (uint32)hr);
+			cemuLog_log(LogType::Force, "XB1-D3D11-PROBE: {}. No D3D11 Wii U game backend.", probeResult);
+			if (context) context->Release();
+			if (device) device->Release();
+		}
+		ImGui::TextWrapped("%s", probeResult.c_str());
 #endif
 #ifdef CEMU_UWP
 		ImGui::TextDisabled("Compiler: FXC / DXBC SM5.1 (fixed)");

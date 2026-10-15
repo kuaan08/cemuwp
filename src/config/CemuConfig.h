@@ -456,6 +456,9 @@ struct CemuConfig
 #ifdef CEMU_UWP
 	// Original Xbox One variant: SM6/DXC is disabled; always use FXC/DXBC SM5.1.
 	ConfigValue<int> d3d12_shader_compiler{ 0 };
+	ConfigValue<bool> xbox_depth_optimized_clear{ false };
+	ConfigValue<bool> xbox_skip_texture_checkpoint{ true };
+	ConfigValue<bool> xbox_disable_dred{ false };
 #else
 	ConfigValue<int> d3d12_shader_compiler{ 0 }; // D3D12: 0 FXC (DXBC), 1 DXC (DXIL); CEMU_D3D12_SHADER_COMPILER overrides it
 #endif

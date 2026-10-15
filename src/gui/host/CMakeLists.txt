@@ -30,7 +30,7 @@ if (CEMU_UWP)
 	)
 	# C++/WinRT headers don't mix with the shared precompiled header, the file includes it itself
 	set_source_files_properties(uwp/HostMainUWP.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
-	target_link_libraries(CemuHostFrontend PRIVATE xinputuap WindowsApp)
+	target_link_libraries(CemuHostFrontend PRIVATE xinputuap WindowsApp d3d11)
 else()
 	target_sources(CemuHostFrontend PRIVATE
 		win32/HostMainWin32.cpp

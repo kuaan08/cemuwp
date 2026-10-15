@@ -137,8 +137,14 @@ void D3D12Renderer::CreateDevice()
 	// Device Removed Extended Data: the runtime records the GPU operations of every command list and the allocation of a
 	// GPU page fault, which LogDeviceRemovedData() writes to the log. It is part of the runtime (no Graphics Tools needed)
 	// and the only way to find out what killed the device on a machine without a debugger, like an Xbox
+#ifdef CEMU_UWP
+	const bool skipDred = GetConfig().xbox_disable_dred.GetValue();
+	m_dredEnabled = !skipDred && D3D12_EnableDeviceRemovedDiagnostics();
+	cemuLog_log(LogType::Force, "D3D12: DRED {} (Xbox One experiment)", skipDred ? "disabled" : (m_dredEnabled ? "enabled" : "not available"));
+#else
 	m_dredEnabled = D3D12_EnableDeviceRemovedDiagnostics();
 	cemuLog_log(LogType::Force, "D3D12: Device removed diagnostics (DRED) {}", m_dredEnabled ? "enabled" : "not available");
+#endif
 
 	// CEMU_D3D12_WARP=1 uses WARP, Microsoft's software reference implementation. Drivers differ in how lenient they are
 	// (Intel rendered Mario Kart 8's button icons correctly, the Xbox didn't), WARP shows how the API is specified

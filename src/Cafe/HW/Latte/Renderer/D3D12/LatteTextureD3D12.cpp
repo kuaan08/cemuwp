@@ -2,6 +2,7 @@
 #include "Cafe/HW/Latte/Renderer/D3D12/LatteTextureViewD3D12.h"
 #include "Cafe/HW/Latte/Renderer/D3D12/D3D12Renderer.h"
 #include "Cafe/HW/Latte/Core/Latte.h"
+#include "config/CemuConfig.h"
 
 #include <mutex>
 #include <unordered_set>
@@ -99,19 +100,43 @@ LatteTextureD3D12::LatteTextureD3D12(D3D12Renderer* renderer, Latte::E_DIM dim, 
 			probeId, isDepth ? "depth" : "color", m_desc.Width, m_desc.Height, m_desc.DepthOrArraySize,
 			m_desc.MipLevels, (uint32)m_desc.Format, (uint32)m_desc.Flags, m_desc.SampleDesc.Count);
 #endif
-	HRESULT hr = renderer->GetDevice()->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &m_desc, initialState, nullptr, IID_PPV_ARGS(&m_resource));
+	// Opt-in D3D12 depth/stencil optimized clear value (Microsoft recommended descriptor).
+	// Compare against the original nullptr path on the Xbox One.
+	D3D12_CLEAR_VALUE depthClear{};
+	const D3D12_CLEAR_VALUE* clearValue = nullptr;
+#ifdef CEMU_UWP
+	if (isDepth && GetConfig().xbox_depth_optimized_clear.GetValue() &&
+		m_formatInfo.dsvFormat != DXGI_FORMAT_UNKNOWN)
+	{
+		depthClear.Format = m_formatInfo.dsvFormat;
+		depthClear.DepthStencil.Depth = 1.0f;
+		depthClear.DepthStencil.Stencil = 0;
+		clearValue = &depthClear;
+		if (traceCreation)
+			cemuLog_log(LogType::Force, "XB1-TEX #{} using optimized depth clear DXGI {} (experimental)", probeId, (uint32)depthClear.Format);
+	}
+#endif
+	HRESULT hr = renderer->GetDevice()->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &m_desc, initialState, clearValue, IID_PPV_ARGS(&m_resource));
 #ifdef CEMU_UWP
 	if (traceCreation)
 		cemuLog_log(LogType::Force, "XB1-TEX #{} END CreateCommittedResource result {} resource {}",
 			probeId, D3D12_HResultToString(hr), m_resource ? "valid" : "null");
 #endif
 #ifdef CEMU_UWP
-	// Xbox One Fat / SraKmd: a reproducible native driver AV follows successful
-	// CreateCommittedResource for the first depth texture. The next action was
-	// GetDeviceRemovedReason() in D3D12_Checkpoint. Avoid *that immediate query*
-	// on this experimental UWP build, without disabling the other checkpoints.
-	if (traceCreation)
-		cemuLog_log(LogType::Force, "XB1-TEX #{} SKIP immediate GetDeviceRemovedReason after texture allocation (diagnostic)", probeId);
+	// Switchable A/B test of the immediate GetDeviceRemovedReason query.
+	if (GetConfig().xbox_skip_texture_checkpoint.GetValue())
+	{
+		if (traceCreation)
+			cemuLog_log(LogType::Force, "XB1-TEX #{} SKIP immediate GetDeviceRemovedReason (A/B)", probeId);
+	}
+	else
+	{
+		if (traceCreation)
+			cemuLog_log(LogType::Force, "XB1-TEX #{} BEGIN immediate GetDeviceRemovedReason (A/B)", probeId);
+		D3D12_Checkpoint(renderer->GetDevice(), "game texture created");
+		if (traceCreation)
+			cemuLog_log(LogType::Force, "XB1-TEX #{} END immediate GetDeviceRemovedReason (A/B)", probeId);
+	}
 #else
 	D3D12_Checkpoint(renderer->GetDevice(), "game texture created");
 #endif

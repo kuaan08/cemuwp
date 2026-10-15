@@ -149,6 +149,11 @@ XMLConfigParser CemuConfig::Load(XMLConfigParser& parser)
 	frame_interpolation = graphic.get("FrameInterpolation", frame_interpolation);
 	pipeline_wait = graphic.get("PipelineWait", pipeline_wait);
 	d3d12_shader_compiler = graphic.get("ShaderCompiler", d3d12_shader_compiler);
+#ifdef CEMU_UWP
+	xbox_depth_optimized_clear = graphic.get("XboxDepthOptimizedClear", xbox_depth_optimized_clear.GetInitValue());
+	xbox_skip_texture_checkpoint = graphic.get("XboxSkipTextureCheckpoint", xbox_skip_texture_checkpoint.GetInitValue());
+	xbox_disable_dred = graphic.get("XboxDisableDRED", xbox_disable_dred.GetInitValue());
+#endif
 	vk_accurate_barriers = graphic.get("vkAccurateBarriers", true); // this used to be "VulkanAccurateBarriers" but because we changed the default to true in 1.27.1 the option name had to be changed
 #ifdef ENABLE_METAL
 	force_mesh_shaders = graphic.get("ForceMeshShaders", false);
@@ -389,6 +394,11 @@ XMLConfigParser CemuConfig::Save(XMLConfigParser& parser)
 	graphic.set("FrameInterpolation", frame_interpolation.GetValue());
 	graphic.set("PipelineWait", pipeline_wait.GetValue());
 	graphic.set("ShaderCompiler", d3d12_shader_compiler.GetValue());
+#ifdef CEMU_UWP
+	graphic.set("XboxDepthOptimizedClear", xbox_depth_optimized_clear.GetValue());
+	graphic.set("XboxSkipTextureCheckpoint", xbox_skip_texture_checkpoint.GetValue());
+	graphic.set("XboxDisableDRED", xbox_disable_dred.GetValue());
+#endif
 	graphic.set("vkAccurateBarriers", vk_accurate_barriers);
 
 	auto overlay_node = graphic.set("Overlay");

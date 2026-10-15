@@ -63,3 +63,11 @@ Two logs of commit 538b298 (one with async compile enabled, one disabled) consis
 In `LatteTextureD3D12`, the immediate next call after the successful depth allocation is `D3D12_Checkpoint` which queries `ID3D12Device::GetDeviceRemovedReason()`. This is a **hypothesis, not a proven stack-frame attribution** (native symbols are still required). The next experimental revision skips only this per-allocation query on UWP, preserving other device-removed checkpoints. It logs the constructor exit and brackets texture-view construction. If the crash persists with the new trace, the last completed `XB1-*` record locates the next investigation point.
 
 Do not report the defect as corrected until a real Xbox One game boot survives.
+
+## Research-driven compatibility experiments (Xbox One Fat)
+
+Public Xbox UWP guidance shows D3D11 FL10.0 / SM4.0 hardware and D3D12 FL11.0 (SM5.1+) hardware. The separate rodrigoandrigo/Cemu-UWP-Host D3D11 backend requires FL11.0; it cannot directly render Wii U games on original Xbox One FL10.0. The Settings menu therefore offers only an actual hardware D3D11 device-creation probe, not a fake game backend switch.
+
+Three independent, persistent D3D12 tests: opt-in typed optimized clear value for depth-stencil allocations (off by default); immediate per-texture GetDeviceRemovedReason query (skipped by default, can restore); and disabling DRED driver breadcrumbs (off by default). Test one at a time and compare XB1-TEX/RTV/DSV/VIEW/FBO breadcrumbs. A driver exception 0xC0000005 in umd12ddi.dll does not on its own prove the driver is defective. These are A/B experiments, **not verified fixes**.
+
+Sources: https://walbourn.github.io/directx-and-uwp-on-xbox-one/ ; https://learn.microsoft.com/windows/win32/api/d3d12/nf-d3d12-id3d12device-createcommittedresource ; https://learn.microsoft.com/windows/win32/direct3d12/use-dred ; https://github.com/rodrigoandrigo/Cemu-UWP-Host
