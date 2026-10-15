@@ -25,3 +25,13 @@
 [submodule "dependencies/xbyak_aarch64"]
 	path = dependencies/xbyak_aarch64
 	url = https://github.com/fujitsu/xbyak_aarch64
+
+[submodule "ports/Cemu"]
+	path = ports/Cemu
+	url = https://github.com/rodrigoandrigo/Cemu.git
+[submodule "ports/Cemu-UWP-Host"]
+	path = ports/Cemu-UWP-Host
+	url = https://github.com/rodrigoandrigo/Cemu-UWP-Host.git
+[submodule "ports/SDL3-uwp"]
+	path = ports/SDL3-uwp
+	url = https://github.com/rodrigoandrigo/SDL3_UWP.git
