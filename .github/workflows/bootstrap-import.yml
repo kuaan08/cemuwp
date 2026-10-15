@@ -20,15 +20,23 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
-      - name: Import PrismFox67 D3D12 and UWP source with upstream history
+      - name: Import upstream source snapshot (without privileged workflow files)
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote add source https://github.com/PrismFox67/Cemu-UWP.git
-          git fetch --no-tags source d3d12-backend
-          # Tested upstream reference: 8a59ff7a2fe77cdb09aff2a4440249cf23e29e81.
-          # Merge preserves both the upstream history and this bootstrap workflow.
-          git merge --allow-unrelated-histories --no-edit -m "Import PrismFox67/Cemu-UWP d3d12-backend" FETCH_HEAD
+          git fetch --depth=1 source d3d12-backend
+          test "$(git rev-parse FETCH_HEAD)" = "8a59ff7a2fe77cdb09aff2a4440249cf23e29e81"
+          # Import every tracked file and the submodule pointers without pushing upstream's workflows.
+          git checkout FETCH_HEAD -- .
+          while IFS= read -r path; do
+            case "$path" in
+              .github/workflows/bootstrap-import.yml) ;;
+              *) git rm -f -- "$path" ;;
+            esac
+          done < <(git ls-files '.github/workflows/*')
+          git status --short | tail -n 20
+          git commit -m "Import Cemu UWP D3D12 source snapshot (PrismFox67 8a59ff7)"
           git push origin HEAD:main
