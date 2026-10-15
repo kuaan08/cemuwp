@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Xbox tester guide
+    url: https://github.com/PrismFox67/Cemu-UWP/blob/d3d12-backend/docs/XBOX_TESTERS.md
+    about: Install steps, recommended settings and what to expect on the Xbox
+  - name: Official Cemu
+    url: https://github.com/cemu-project/Cemu
+    about: Problems that also happen in official Cemu builds belong to the Cemu project
