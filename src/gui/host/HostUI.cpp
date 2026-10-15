@@ -670,6 +670,49 @@ namespace
 				changed = true;
 			}
 		}
+#ifdef CEMU_UWP
+		ImGui::SeparatorText("Xbox One shader experiments");
+		ImGui::TextWrapped("DXBC SM5.1 is the compatibility route. DXC/DXIL SM6 requires a compatible GPU. These are test presets, not different decoder engines.");
+		if (ImGui::Button("FXC: accuracy / diagnostic"))
+		{
+			config.d3d12_shader_compiler = 0;
+			config.async_compile = false;
+			config.precompile_pipelines = true;
+			config.precompile_in_background = false;
+			config.pipeline_wait = 2;
+			changed = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("FXC: balanced"))
+		{
+			config.d3d12_shader_compiler = 0;
+			config.async_compile = true;
+			config.precompile_pipelines = true;
+			config.precompile_in_background = false;
+			config.pipeline_wait = 1;
+			changed = true;
+		}
+		if (ImGui::Button("FXC: smooth / async"))
+		{
+			config.d3d12_shader_compiler = 0;
+			config.async_compile = true;
+			config.precompile_pipelines = true;
+			config.precompile_in_background = true;
+			config.pipeline_wait = 0;
+			changed = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("DXC: SM6 probe (may fall back to FXC)"))
+		{
+			config.d3d12_shader_compiler = 1;
+			config.async_compile = true;
+			config.precompile_pipelines = true;
+			config.precompile_in_background = false;
+			config.pipeline_wait = 1;
+			changed = true;
+		}
+		ImGui::TextDisabled("Accuracy may pause on shader compilation. Smooth can omit first-use effects. Restart game to change compiler.");
+#endif
 		// DXIL (DXC) skips the driver's DXBC translation, which may make the Xbox's per session pipeline creation faster.
 		// Each compiler has its own shader cache, so switching recompiles every shader once
 #ifdef CEMU_UWP
