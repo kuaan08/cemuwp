@@ -55,3 +55,11 @@ User-provided `log.txt` and `log_previous.txt` from version `10b4fef` both show 
 This diagnostic patch adds `XB1-TEX`, `XB1-RTV`, `XB1-DSV` and `XB1-FBO` BEGIN/END breadcrumbs, bounded to the first few attachments. It also selects non-array TEXTURE2D render-target/depth-stencil view dimensions for native 2D single-slice resources. That view-dimension change is a compatibility experiment, **not a confirmed fix**. Other platforms retain their existing descriptor path.
 
 On the Xbox, launch the same title. If it closes, export only `LocalState/log.txt` and `log_previous.txt` via Device Portal, not the full package data archive; user archives may include private `keys.txt`. Compare the final unmatched BEGIN probe to isolate the next failing D3D12 driver call.
+
+## Second NES Remix test: 538b298
+
+Two logs of commit 538b298 (one with async compile enabled, one disabled) consistently crashed in SraKmd `umd12ddi.dll+0x3732d`. The first color texture and depth resource were each successfully allocated via `CreateCommittedResource` (HRESULT S_OK), but none of the view/FBO trace entry markers appeared.
+
+In `LatteTextureD3D12`, the immediate next call after the successful depth allocation is `D3D12_Checkpoint` which queries `ID3D12Device::GetDeviceRemovedReason()`. This is a **hypothesis, not a proven stack-frame attribution** (native symbols are still required). The next experimental revision skips only this per-allocation query on UWP, preserving other device-removed checkpoints. It logs the constructor exit and brackets texture-view construction. If the crash persists with the new trace, the last completed `XB1-*` record locates the next investigation point.
+
+Do not report the defect as corrected until a real Xbox One game boot survives.

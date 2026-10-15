@@ -105,7 +105,16 @@ LatteTextureD3D12::LatteTextureD3D12(D3D12Renderer* renderer, Latte::E_DIM dim, 
 		cemuLog_log(LogType::Force, "XB1-TEX #{} END CreateCommittedResource result {} resource {}",
 			probeId, D3D12_HResultToString(hr), m_resource ? "valid" : "null");
 #endif
+#ifdef CEMU_UWP
+	// Xbox One Fat / SraKmd: a reproducible native driver AV follows successful
+	// CreateCommittedResource for the first depth texture. The next action was
+	// GetDeviceRemovedReason() in D3D12_Checkpoint. Avoid *that immediate query*
+	// on this experimental UWP build, without disabling the other checkpoints.
+	if (traceCreation)
+		cemuLog_log(LogType::Force, "XB1-TEX #{} SKIP immediate GetDeviceRemovedReason after texture allocation (diagnostic)", probeId);
+#else
 	D3D12_Checkpoint(renderer->GetDevice(), "game texture created");
+#endif
 	if (FAILED(hr))
 	{
 		cemuLog_log(LogType::Force, "D3D12: Failed to create texture {}x{}x{} fmt {:04x} ({}): {}", m_desc.Width, m_desc.Height, m_desc.DepthOrArraySize, (uint32)format, (uint32)m_desc.Format, D3D12_HResultToString(hr));
@@ -120,6 +129,10 @@ LatteTextureD3D12::LatteTextureD3D12(D3D12Renderer* renderer, Latte::E_DIM dim, 
 		D3D12_SetDebugName(m_resource.Get(), fmt::format("tex_{:08x}_fmt{:04x}_tm{:x}", physAddress, (uint32)format, (uint32)tileMode));
 	}
 	m_states.resize(GetSubresourceCount(), initialState);
+#ifdef CEMU_UWP
+	if (traceCreation)
+		cemuLog_log(LogType::Force, "XB1-TEX #{} END texture constructor; subresources {}", probeId, m_states.size());
+#endif
 }
 
 LatteTextureD3D12::~LatteTextureD3D12()

@@ -62,6 +62,14 @@ static uint32 _AdjustSwizzle(Latte::E_GX2SURFFMT format, uint32 word4)
 LatteTextureViewD3D12::LatteTextureViewD3D12(D3D12Renderer* renderer, LatteTextureD3D12* texture, Latte::E_DIM dim, Latte::E_GX2SURFFMT format, sint32 firstMip, sint32 mipCount, sint32 firstSlice, sint32 sliceCount)
 	: LatteTextureView(texture, firstMip, mipCount, firstSlice, sliceCount, dim, format), m_renderer(renderer), m_baseTexture(texture)
 {
+#ifdef CEMU_UWP
+	static std::atomic_uint32_t s_constructProbeCount{ 0 };
+	const uint32 constructId = ++s_constructProbeCount;
+	if (constructId <= 64)
+		cemuLog_log(LogType::Force, "XB1-VIEW #{} BEGIN construct dim {} format {:04x} depth {} slice {}+{} mip {}+{}",
+			constructId, (uint32)dim, (uint32)format, texture->isDepth ? "yes" : "no",
+			firstSlice, sliceCount, firstMip, mipCount);
+#endif
 	m_uniqueId = renderer->GenUniqueId();
 	const D3D12TextureFormatInfo& baseInfo = texture->GetFormatInfo();
 	m_srvFormat = baseInfo.srvFormat;
@@ -98,6 +106,11 @@ LatteTextureViewD3D12::LatteTextureViewD3D12(D3D12Renderer* renderer, LatteTextu
 			cemuLog_log(LogType::Force, "D3D12: view dim {} fmt {:04x} slices {}+{} mips {}+{} of {}x{}x{} (dim {} tm {}){}", (uint32)dim, (uint32)format, firstSlice, sliceCount, firstMip, mipCount,
 				texture->width, texture->height, texture->depth, (uint32)texture->dim, (uint32)texture->tileMode, m_usesSliceCopy ? " slice copy" : "");
 	}
+#ifdef CEMU_UWP
+	if (constructId <= 64)
+		cemuLog_log(LogType::Force, "XB1-VIEW #{} END construct; SRV {} RTV {} DSV {}",
+			constructId, (uint32)m_srvFormat, (uint32)m_rtvFormat, (uint32)m_dsvFormat);
+#endif
 }
 
 void LatteTextureViewD3D12::UpdateSliceCopy()
