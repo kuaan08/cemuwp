@@ -672,7 +672,7 @@ namespace
 		}
 #ifdef CEMU_UWP
 		ImGui::SeparatorText("Xbox One shader experiments");
-		ImGui::TextWrapped("DXBC SM5.1 is the compatibility route. DXC/DXIL SM6 requires a compatible GPU. These are test presets, not different decoder engines.");
+		ImGui::TextWrapped("Only FXC / DXBC Shader Model 5.1 is enabled for Xbox One. DXC/DXIL SM6 is disabled; use these presets to test pipeline scheduling.");
 		if (ImGui::Button("FXC: accuracy / diagnostic"))
 		{
 			config.d3d12_shader_compiler = 0;
@@ -701,25 +701,13 @@ namespace
 			config.pipeline_wait = 0;
 			changed = true;
 		}
-		ImGui::SameLine();
-		if (ImGui::Button("DXC: SM6 probe (may fall back to FXC)"))
-		{
-			config.d3d12_shader_compiler = 1;
-			config.async_compile = true;
-			config.precompile_pipelines = true;
-			config.precompile_in_background = false;
-			config.pipeline_wait = 1;
-			changed = true;
-		}
 		ImGui::TextDisabled("Accuracy may pause on shader compilation. Smooth can omit first-use effects. Restart game to change compiler.");
 #endif
-		// DXIL (DXC) skips the driver's DXBC translation, which may make the Xbox's per session pipeline creation faster.
-		// Each compiler has its own shader cache, so switching recompiles every shader once
 #ifdef CEMU_UWP
-		const char* compilers[] = { "FXC (Xbox One compatibility, default)", "DXC (experimental on Xbox One)" };
+		ImGui::TextDisabled("Compiler: FXC / DXBC SM5.1 (fixed)");
 #else
+		// DXC/DXIL is left available on non-UWP configurations.
 		const char* compilers[] = { "FXC (default)", "DXC (experimental)" };
-#endif
 		int compiler = std::clamp<int>(config.d3d12_shader_compiler.GetValue(), 0, 1);
 		ImGui::SetNextItemWidth(400.0f * s_scale);
 		if (ImGui::Combo("Shader compiler (next game start)", &compiler, compilers, 2))
@@ -727,6 +715,7 @@ namespace
 			config.d3d12_shader_compiler = compiler;
 			changed = true;
 		}
+#endif
 		const char* filters[] = { "Bilinear", "Bicubic", "Hermite", "Nearest neighbor" };
 		int upscale = std::clamp<int>(config.upscale_filter.GetValue(), 0, 3);
 		ImGui::SetNextItemWidth(400.0f * s_scale);

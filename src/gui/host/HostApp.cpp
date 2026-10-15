@@ -153,15 +153,13 @@ namespace
 		// this frontend only supports the D3D12 renderer
 		config.graphic_api = GraphicAPI::kD3D12;
 #ifdef CEMU_UWP
-		// Preserve saved test settings. Only fresh installs get conservative Xbox One defaults.
+		// Override old Series UWP settings. No SM6 compiler may be selected on the One.
+		config.d3d12_shader_compiler = 0;
 		if (firstStart)
-		{
-			config.d3d12_shader_compiler = 0; // FXC -> DXBC SM5.1
 			config.frame_interpolation = false;
-		}
-		cemuLog_log(LogType::Force, "Xbox One experiment: shader compiler {} (0 FXC/DXBC SM5.1, 1 DXC/DXIL SM6), async {}, pipeline preload {}, background {}, wait mode {}, interpolation {}",
-			config.d3d12_shader_compiler.GetValue(), config.async_compile.GetValue(), config.precompile_pipelines.GetValue(),
-			config.precompile_in_background.GetValue(), config.pipeline_wait.GetValue(), config.frame_interpolation.GetValue());
+		cemuLog_log(LogType::Force, "Xbox One SM5.1-only: DXBC/FXC enforced; async {}, pipeline preload {}, background {}, wait mode {}, interpolation {}",
+			config.async_compile.GetValue(), config.precompile_pipelines.GetValue(), config.precompile_in_background.GetValue(),
+			config.pipeline_wait.GetValue(), config.frame_interpolation.GetValue());
 #endif
 		if (firstStart)
 		{

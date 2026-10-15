@@ -211,8 +211,11 @@ void D3D12Renderer::CreateDevice()
 
 	// capabilities. Older runtimes reject shader models they don't know about, so query from the highest one down.
 	// Shader model 5.1 (DXBC, the default FXC path) is supported by every D3D12 device. 6.0 is only needed for DXIL
+#ifndef CEMU_UWP
 	D3D12_FEATURE_DATA_SHADER_MODEL sm{};
+#endif
 	m_highestShaderModel = D3D_SHADER_MODEL_5_1;
+#ifndef CEMU_UWP
 	for (uint32 candidate = 0x67; candidate >= 0x60; candidate--)
 	{
 		sm.HighestShaderModel = (D3D_SHADER_MODEL)candidate;
@@ -222,6 +225,9 @@ void D3D12Renderer::CreateDevice()
 			break;
 		}
 	}
+#else
+	cemuLog_log(LogType::Force, "D3D12: Xbox One UWP SM5.1-only; SM6 probing disabled");
+#endif
 	D3D12_FEATURE_DATA_D3D12_OPTIONS options{};
 	if (SUCCEEDED(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &options, sizeof(options))))
 		m_bindingTier = options.ResourceBindingTier;

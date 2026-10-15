@@ -336,6 +336,12 @@ bool D3D12ShaderCompiler::Initialize(D3D_SHADER_MODEL highestShaderModel, std::s
 	s_compiler.highestShaderModel = highestShaderModel;
 	D3D12ShaderTranslate::Initialize();
 
+#ifdef CEMU_UWP
+	// Original Xbox One UWP is SM5.1-only. Bypass DXC/DXIL even if a saved setting
+	// or a custom package asks for it; never load dxcompiler.dll / dxil.dll.
+	s_compiler.backend = Backend::FXC;
+	cemuLog_log(LogType::Force, "D3D12: Xbox One UWP SM5.1-only shader compiler: FXC/DXBC");
+#else
 	// the environment variable (desktop testing) wins over the setting (Settings → Graphics → "Shader compiler")
 	std::string requested = _GetEnv("CEMU_D3D12_SHADER_COMPILER");
 	if (requested.empty() && GetConfig().d3d12_shader_compiler.GetValue() == 1)
@@ -365,6 +371,7 @@ bool D3D12ShaderCompiler::Initialize(D3D_SHADER_MODEL highestShaderModel, std::s
 	{
 		cemuLog_log(LogType::Force, "D3D12: Unknown shader compiler \"{}\" in CEMU_D3D12_SHADER_COMPILER, using FXC", requested);
 	}
+#endif
 	cemuLog_log(LogType::Force, "D3D12: Shader compiler: {}", GetBackendName());
 	return true;
 }
@@ -406,15 +413,17 @@ const char* D3D12ShaderCompiler::GetBackendName()
 
 bool D3D12ShaderCompiler::CompileHLSL(D3D12Const::Stage stage, const std::string& hlslSource, std::vector<uint8>& bytecodeOut, std::string& logOut)
 {
+#ifndef CEMU_UWP
 	if (s_compiler.backend == Backend::DXC)
 		return _CompileDXC(stage, hlslSource, bytecodeOut, logOut);
+#endif
 	return _CompileFXC(stage, hlslSource, bytecodeOut, logOut);
 }
 
 bool D3D12ShaderCompiler::CompileGLSL(D3D12Const::Stage stage, const std::string& glslSource, std::vector<uint8>& bytecodeOut, D3D12BindingRemap& remapOut, std::string& logOut)
 {
 	bytecodeOut.clear();
-#ifdef CEMU_D3D12_SPIRV_TO_DXIL
+#if defined(CEMU_D3D12_SPIRV_TO_DXIL) && !defined(CEMU_UWP)
 	if (s_compiler.backend == Backend::SpirvToDXIL)
 	{
 		std::vector<uint32> spirv;

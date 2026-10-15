@@ -41,3 +41,9 @@ The ZIP is expected to include `.msix`, `Microsoft.VCLibs.x64.14.00.appx` depend
 - Profile performance and shader creation on Xbox One before adding rendering optimizations or low-resolution graphic-pack presets.
 
 No paid game files, firmware, keys, or copyrighted game assets are included.
+
+## Xbox One: SM5.1-only configuration
+
+This branch disables SM6/DXC/DXIL at runtime for UWP. The renderer stops probing Shader Model 6+, the shader compiler enforces the FXC/DXBC path, and UI DXC selections are hidden. Saved settings from Series builds are reset to FXC when the UWP frontend initializes. Three FXC pipeline scheduling profiles remain to test accuracy, balanced, and asynchronous operation.
+
+DXC-related source code is intentionally retained for non-UWP builds and upstream merges, but it is not selected or loaded by this Xbox One UWP build. This does not remove the D3D12 GPU requirements or establish game compatibility.
