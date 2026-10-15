@@ -152,6 +152,14 @@ namespace
 		auto& config = GetConfig();
 		// this frontend only supports the D3D12 renderer
 		config.graphic_api = GraphicAPI::kD3D12;
+#ifdef CEMU_UWP
+		// Xbox One experimental branch: prefer the older DXBC / Shader Model 5.1 path.
+		// This also overrides DXC saved by a previous Series X|S build using the same package ID.
+		// It is intentionally reversible from the Graphics menu after boot.
+		config.d3d12_shader_compiler = 0;
+		config.frame_interpolation = false;
+		cemuLog_log(LogType::Force, "Xbox One profile: FXC shader compiler, frame interpolation disabled");
+#endif
 		if (firstStart)
 		{
 			config.async_compile = true;
@@ -210,6 +218,9 @@ namespace
 
 	void _LaunchGame(const fs::path& path)
 	{
+		uint64 launchMemoryUsage = 0, launchMemoryLimit = 0;
+		HostPlatform::GetMemoryUsage(launchMemoryUsage, launchMemoryLimit);
+		cemuLog_log(LogType::Force, "Xbox One diagnostic: starting title {}, memory {} / {} MiB", _pathToUtf8(path), launchMemoryUsage >> 20, launchMemoryLimit >> 20);
 		HostIcons::Stop(); // it mounts titles, finish before the game's title is mounted
 		std::string error;
 		if (!_PrepareTitle(path, error))
@@ -220,6 +231,7 @@ namespace
 		cemuLog_log(LogType::Force, "Host: launching {}", _pathToUtf8(path));
 
 		// the emulator renders into the same window, the launcher has to give up its swap chain first
+		cemuLog_log(LogType::Force, "Xbox One diagnostic: title prepared, releasing launcher D3D12 resources");
 		s_launcher.reset();
 
 		auto& windowInfo = _WindowInfo();
@@ -237,7 +249,9 @@ namespace
 			s_state = State::Quitting;
 			return;
 		}
+		cemuLog_log(LogType::Force, "Xbox One diagnostic: game renderer ready; starting PowerPC title");
 		CafeSystem::LaunchForegroundTitle();
+		cemuLog_log(LogType::Force, "Xbox One diagnostic: PowerPC launch returned");
 		s_state = State::Running;
 		HostTools::MarkGameStarted(CafeSystem::GetForegroundTitleName());
 	}
