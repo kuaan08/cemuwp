@@ -72,4 +72,25 @@ change("DirectXPage.xaml.cpp",
        '\tsettings.graphics_api = 3;\n\tsettings.vsync = vsyncBox->SelectedIndex;',
        '\tsettings.graphics_api = graphicsBackendBox->SelectedIndex == 1 ? 4 : 3;\n\tsettings.vsync = vsyncBox->SelectedIndex;')
 
+# Separate package identity: do not overwrite Rodrigo's original installation,
+# saves, imported games or trusted signing identity on an Xbox developer console.
+change("Package.appxmanifest",
+       'Name="9603d93f-a7c7-491d-9d0b-1a0930897231"',
+       'Name="CemuXboxOneDual.Kuaan08"')
+change("Package.appxmanifest",
+       'Publisher="CN=rodri"',
+       'Publisher="CN=CemuXboxOneDual"')
+change("Package.appxmanifest",
+       'PhoneProductId="9603d93f-a7c7-491d-9d0b-1a0930897231"',
+       'PhoneProductId="18a2a39a-74b1-4270-907b-a091970a6b34"')
+change("Package.appxmanifest",
+       '<DisplayName>Cemu_UWP_Host</DisplayName>',
+       '<DisplayName>Cemu Xbox One Dual</DisplayName>')
+change("Package.appxmanifest",
+       '<PublisherDisplayName>rodri</PublisherDisplayName>',
+       '<PublisherDisplayName>Cemu Xbox One Community</PublisherDisplayName>')
+change("Package.appxmanifest",
+       'DisplayName="Cemu_UWP_Host"',
+       'DisplayName="Cemu Xbox One Dual"')
+
 print("Xbox One: selectable D3D11/D3D12 + hardware/WARP diagnostics overlay ready.")
