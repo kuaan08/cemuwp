@@ -93,4 +93,37 @@ change("Package.appxmanifest",
        'DisplayName="Cemu_UWP_Host"',
        'DisplayName="Cemu Xbox One Dual"')
 
+# The pinned Rodrigo host has source definitions for two recovery methods,
+# but the corresponding headers were never updated. Restore the declarations
+# and a safe XAML swap-chain detach implementation; previously C2039/C2065
+# prevented the UWP host from being compiled despite the full Cemu DLL building.
+change("Cemu_UWP_HostMain.h",
+       "\t\tvoid ResizeSurface(int width, int height, double dpiScale);",
+       "\t\tvoid ReplaceD3D11Surface(const CemuEmbedD3D11Surface& surface);\n\t\tvoid ResizeSurface(int width, int height, double dpiScale);")
+
+change("Common/DeviceResources.h",
+       "\t\tvoid ReleaseSizeDependentResourcesForExternalRenderer();",
+       "\t\tvoid ReleaseSizeDependentResourcesForExternalRenderer();\n\t\tvoid DetachSwapChainPanel();")
+
+change("Common/DeviceResources.cpp",
+       "void DX::DeviceResources::ReleaseSizeDependentResourcesForExternalRenderer()\n{",
+       """// Called on the XAML UI thread during host shutdown, after CemuEmbed_Stop.
+ // Release the composition panel's DXGI reference before discarding the host
+ // resources. This avoids retaining a stale device across app resume.
+void DX::DeviceResources::DetachSwapChainPanel()
+{
+\tif (m_swapChainPanel)
+\t{
+\t\tMicrosoft::WRL::ComPtr<ISwapChainPanelNative> panel;
+\t\tif (SUCCEEDED(reinterpret_cast<IUnknown*>(m_swapChainPanel)->QueryInterface(
+\t\t\tIID_PPV_ARGS(panel.GetAddressOf()))))
+\t\t\tpanel->SetSwapChain(nullptr);
+\t\tm_swapChainPanel = nullptr;
+\t}
+\tm_swapChain.Reset();
+}
+
+void DX::DeviceResources::ReleaseSizeDependentResourcesForExternalRenderer()
+{""")
+
 print("Xbox One: selectable D3D11/D3D12 + hardware/WARP diagnostics overlay ready.")
